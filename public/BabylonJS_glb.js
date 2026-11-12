@@ -15,7 +15,9 @@
 
 const canvas = document.getElementById("renderCanvas");
 const engine = new BABYLON.Engine(canvas, true);
-const fileInput = document.getElementById("glbFileInput");
+const hostControls = document.getElementById("hostControls");   // CHANGED: replaces the file input
+const glbSelect = document.getElementById("glbSelect");         // dropdown of .glb files in public/
+const addModelBtn = document.getElementById("addModelBtn");
 
 let scene;            // global
 let modelCount = 0;
@@ -27,7 +29,7 @@ let myRole = null;                  // "host" or "spectator", assigned by the se
 let latestState = { models: [] };   // most recent scene state received from the server
 const loadedIds = new Set();        // ids of models this client has already loaded
 let loadChain = Promise.resolve();  // makes models load one at a time, in order
-fileInput.style.display = "none";   // hidden until the server says we are the host
+hostControls.style.display = "none"; // hidden until the server says we are the host
 // Connect back to whichever server served this page
 const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host);
 // END ADDED ----------------------------------------------------------
@@ -142,22 +144,49 @@ function getXPosForIndex(index) {
     return xPos;
 }
 
-// The file picker now only tells the SERVER which model to add. Nothing is loaded
+// Ask the server which .glb files are in its public folder and fill the dropdown.
+// Requires the GET /models route on the server (see server snippet).
+async function loadModelList() {
+    try {
+        const response = await fetch("/models");
+        if (!response.ok) {
+            throw new Error("HTTP " + response.status);
+        }
+        const names = await response.json();      // e.g. ["duck.glb", "car.glb"]
+        glbSelect.innerHTML = "";
+        names.forEach((name) => {
+            const option = document.createElement("option");
+            option.value = name;
+            option.textContent = name;
+            glbSelect.appendChild(option);
+        });
+        addModelBtn.disabled = names.length === 0;
+        if (names.length === 0) {
+            const option = document.createElement("option");
+            option.textContent = "(no .glb files in public/)";
+            glbSelect.appendChild(option);
+        }
+    } catch (error) {
+        console.error("Could not load model list from /models:", error);
+        glbSelect.innerHTML = "<option>(model list unavailable)</option>";
+        addModelBtn.disabled = true;
+    }
+}
+
+// The button only tells the SERVER which model to add. Nothing is loaded
 // locally here: the model shows up when the server broadcasts the new state back.
-fileInput.addEventListener("change", (event) => {
-    const file = event.target.files[0];
-    if (!file || myRole !== "host") {
-        event.target.value = "";
+addModelBtn.addEventListener("click", () => {
+    const fileName = glbSelect.value;
+    if (!fileName || myRole !== "host") {
         return;
     }
     const index = latestState.models.length;      // id = index into the models array
     ws.send(JSON.stringify({
         type: "loadModel",
         id: index,
-        fileName: file.name,                      // only the NAME is shared; the .glb must be in public/
+        fileName: fileName,                       // only the NAME is shared; the .glb must be in public/
         position: { x: getXPosForIndex(index), y: 0, z: 0 }
     }));
-    event.target.value = "";                      // lets the host pick the same file again
 });
 
 // Messages from the server
@@ -167,7 +196,10 @@ ws.addEventListener("message", (event) => {
     if (data.type === "role") {
         myRole = data.role;
         roleLabel.textContent = "Role: " + myRole;
-        fileInput.style.display = (myRole === "host") ? "" : "none";
+        hostControls.style.display = (myRole === "host") ? "" : "none";
+        if (myRole === "host") {
+            loadModelList();                      // only the host needs the list
+        }
     }
 
     if (data.type === "state") {
