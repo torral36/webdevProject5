@@ -2,6 +2,7 @@
 const express = require("express");
 const http = require("http");
 const path = require("path");
+const fs = require("fs");
 const WebSocket = require("ws");
 
 const app = express();
@@ -11,6 +12,17 @@ const wss = new WebSocket.Server({ server });
 // Serves the html, css, js and the .glb files from the public folder
 app.use(express.static(path.join(__dirname, "public")));
 app.get("/", (req, res) => res.redirect("/BabylonJS_glb.html"));
+
+// ADDED: list of the .glb files in the public folder, used by the host's dropdown menu.
+// Only .glb files are returned, so the html/css/js files in public/ never show up.
+app.get("/models", (req, res) => {
+    fs.readdir(path.join(__dirname, "public"), (err, files) => {
+        if (err) {
+            return res.status(500).json({ error: "Could not read public folder" });
+        }
+        res.json(files.filter(f => f.toLowerCase().endsWith(".glb")).sort());
+    });
+});
 
 // SCENE STATE (authoritative; model info only, never the glb data)
 let sceneState = {
