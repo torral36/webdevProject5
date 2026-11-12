@@ -13,8 +13,11 @@
 <body>    
     <h1>Devon Torralva GLB Loader</h1>
     <p id="roleLabel">Connecting...</p>   <!-- ADDED: shows "host" or "spectator" -->
-    <!-- File picker that allows users to select GLB 3D model files -->  
-    <input type="file" id="glbFileInput" accept=".glb"> 
+    <!-- CHANGED: host-only list of the .glb files found in the server's public folder -->
+    <div id="hostControls" style="display:none">
+        <select id="glbSelect"></select>
+        <button id="addModelBtn">Add model</button>
+    </div>
     <canvas id="renderCanvas"></canvas>     <!-- Canvas where BabylonJS renders the 3D scene -->
 
     <!-- Loads the BabylonJS core engine library -->
